@@ -1,0 +1,88 @@
+<!-- guest.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Guest</title>
+</head>
+<body>
+    <h1>Guest Page</h1>
+    <h3>Available Files:</h3>
+    <ul id="availableFiles"></ul>
+    <audio id="player" controls></audio>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        let peerId, peerConnection, dataChannel;
+        let hostId = null;
+
+        socket.emit("join");
+
+        socket.on('peer_id', async (data) => {
+            peerId = data.id;
+            console.log("Guest joined with ID: " + peerId);
+            await setupConnection(); // Initiate connection here
+        });
+
+        socket.on("signal", async ({ from, data }) => {
+            hostId = from;
+            console.log("Guest received signal");
+
+            if (data.sdp) {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+            } else if (data.candidate) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+
+        async function setupConnection() {
+            peerConnection = new RTCPeerConnection();
+
+            peerConnection.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                dataChannel.onopen = () => {
+                    console.log("DataChannel open on Guest");
+                    dataChannel.send("LIST");
+                };
+
+                dataChannel.onmessage = (e) => {
+                    if (typeof e.data === "string" && e.data.startsWith("LIST:")) {
+                        const filenames = e.data.slice(5).split(";");
+                        const ul = document.getElementById("availableFiles");
+                        ul.innerHTML = "";
+                        filenames.forEach(name => {
+                            const li = document.createElement("li");
+                            li.textContent = name;
+                            li.onclick = () => dataChannel.send("REQUEST:" + name);
+                            ul.appendChild(li);
+                        });
+                    }
+                };
+            };
+
+            peerConnection.onicecandidate = (e) => {
+                if (e.candidate && hostId) {
+                    socket.emit("signal", {
+                        from: peerId,
+                        to: hostId,
+                        data: { candidate: e.candidate }
+                    });
+                }
+            };
+
+            dataChannel = peerConnection.createDataChannel("music");
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+
+            // Wait a moment for a host to appear (or you'll need a host discovery mechanism)
+            setTimeout(() => {
+                socket.emit("signal", {
+                    from: peerId,
+                    to: null, // let server broadcast to any host
+                    data: { sdp: peerConnection.localDescription }
+                });
+            }, 500);
+        }
+    </script>
+</body>
+</html>

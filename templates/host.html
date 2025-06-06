@@ -1,0 +1,106 @@
+<!-- host.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Host - P2P Music Share</title>
+</head>
+<body>
+    <h2>Host: Share Your Music</h2>
+    <input type="file" id="music" accept="audio/*" multiple>
+    <ul id="fileList"></ul>
+    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+    <script>
+        const socket = io();
+        let peerConnection, dataChannel, peerId, guestId;
+        let filesByName = {};
+
+        socket.emit("join");
+
+        socket.on('peer_id', data => {
+            peerId = data.id;
+            console.log("Hosting peer joined with id: " + peerId);
+        });
+
+        socket.on("signal", async ({ from, data }) => {
+            console.log("Host received signal");
+            if (!peerConnection) {
+                guestId = from;
+                setupConnection(); // Only now we set it up
+            }
+
+            if (data.sdp) {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                if (data.sdp.type === "offer") {
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    socket.emit("signal", {
+                        from: peerId,
+                        to: guestId,
+                        data: { sdp: peerConnection.localDescription }
+                    });
+                }
+            } else if (data.candidate) {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            }
+        });
+
+        function setupConnection() {
+            peerConnection = new RTCPeerConnection();
+
+            peerConnection.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                dataChannel.onopen = () => {
+                    console.log("DataChannel is open");
+                    enableFileSending();
+                };
+                dataChannel.onmessage = async (e) => {
+                    const msg = e.data;
+                    if (typeof msg !== "string") return;
+
+                    if (msg === "LIST") {
+                        const filenames = Object.keys(filesByName).join(";");
+                        dataChannel.send("LIST:" + filenames);
+                    }
+
+                    if (msg.startsWith("REQUEST:")) {
+                        const filename = msg.slice(8).trim();
+                        const file = filesByName[filename];
+                        if (!file) return;
+
+                        const reader = file.stream().getReader();
+                        while (true) {
+                            const { done, value } = await reader.read();
+                            if (done) break;
+                            dataChannel.send(value);
+                        }
+                    }
+                };
+            };
+
+            peerConnection.onicecandidate = (e) => {
+                if (e.candidate) {
+                    socket.emit("signal", {
+                        from: peerId,
+                        to: guestId,
+                        data: { candidate: e.candidate }
+                    });
+                }
+            };
+        }
+
+        function enableFileSending() {
+            document.getElementById("music").onchange = (e) => {
+                const files = Array.from(e.target.files);
+                const ul = document.getElementById("fileList");
+                ul.innerHTML = "";
+                files.forEach(file => {
+                    filesByName[file.name] = file;
+                    const li = document.createElement("li");
+                    li.textContent = file.name;
+                    ul.appendChild(li);
+                });
+            };
+        }
+    </script>
+</body>
+</html>
