@@ -14,19 +14,18 @@
         const socket = io();
         let peerId, peerConnection, dataChannel;
         let hostId = null;
+        let incomingChunks = [];
 
         socket.emit("join");
 
         socket.on('peer_id', async (data) => {
             peerId = data.id;
             console.log("Guest joined with ID: " + peerId);
-            await setupConnection(); // Initiate connection here
+            await setupConnection();
         });
 
         socket.on("signal", async ({ from, data }) => {
             hostId = from;
-            console.log("Guest received signal");
-
             if (data.sdp) {
                 await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
             } else if (data.candidate) {
@@ -36,28 +35,6 @@
 
         async function setupConnection() {
             peerConnection = new RTCPeerConnection();
-
-            peerConnection.ondatachannel = (event) => {
-                dataChannel = event.channel;
-                dataChannel.onopen = () => {
-                    console.log("DataChannel open on Guest");
-                    dataChannel.send("LIST");
-                };
-
-                dataChannel.onmessage = (e) => {
-                    if (typeof e.data === "string" && e.data.startsWith("LIST:")) {
-                        const filenames = e.data.slice(5).split(";");
-                        const ul = document.getElementById("availableFiles");
-                        ul.innerHTML = "";
-                        filenames.forEach(name => {
-                            const li = document.createElement("li");
-                            li.textContent = name;
-                            li.onclick = () => dataChannel.send("REQUEST:" + name);
-                            ul.appendChild(li);
-                        });
-                    }
-                };
-            };
 
             peerConnection.onicecandidate = (e) => {
                 if (e.candidate && hostId) {
@@ -70,15 +47,48 @@
             };
 
             dataChannel = peerConnection.createDataChannel("music");
+            dataChannel.binaryType = 'arraybuffer';
+
+            dataChannel.onopen = () => {
+                console.log("DataChannel open");
+            };
+
+            dataChannel.onmessage = (e) => {
+                if (typeof e.data === "string" && e.data.startsWith("LIST:")) {
+                    const filenames = e.data.slice(5).split(";");
+                    const ul = document.getElementById("availableFiles");
+                    ul.innerHTML = "";
+                    filenames.forEach(name => {
+                        const li = document.createElement("li");
+                        li.textContent = name;
+                        li.onclick = () => {
+                            incomingChunks = [];
+                            dataChannel.send("REQUEST:" + name);
+                        };
+                        ul.appendChild(li);
+                    });
+                } else if (e.data instanceof ArrayBuffer) {
+                    incomingChunks.push(e.data);
+                    // Optional: detect end of file and assemble
+                    clearTimeout(window.chunkTimer);
+                    window.chunkTimer = setTimeout(() => {
+                        const blob = new Blob(incomingChunks, { type: "audio/mpeg" });
+                        const url = URL.createObjectURL(blob);
+                        const player = document.getElementById("player");
+                        player.src = url;
+                        player.play();
+                        incomingChunks = [];
+                    }, 300);
+                }
+            };
 
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
 
-            // Wait a moment for a host to appear (or you'll need a host discovery mechanism)
             setTimeout(() => {
                 socket.emit("signal", {
                     from: peerId,
-                    to: null, // let server broadcast to any host
+                    to: null,
                     data: { sdp: peerConnection.localDescription }
                 });
             }, 500);

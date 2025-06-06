@@ -22,10 +22,9 @@
         });
 
         socket.on("signal", async ({ from, data }) => {
-            console.log("Host received signal");
             if (!peerConnection) {
                 guestId = from;
-                setupConnection(); // Only now we set it up
+                setupConnection();
             }
 
             if (data.sdp) {
@@ -49,24 +48,18 @@
 
             peerConnection.ondatachannel = (event) => {
                 dataChannel = event.channel;
+                dataChannel.binaryType = 'arraybuffer';
                 dataChannel.onopen = () => {
                     console.log("DataChannel is open");
                     enableFileSending();
+                    setInterval(sendFileList, 5000); // Regular updates
                 };
                 dataChannel.onmessage = async (e) => {
                     const msg = e.data;
-                    if (typeof msg !== "string") return;
-
-                    if (msg === "LIST") {
-                        const filenames = Object.keys(filesByName).join(";");
-                        dataChannel.send("LIST:" + filenames);
-                    }
-
-                    if (msg.startsWith("REQUEST:")) {
+                    if (typeof msg === "string" && msg.startsWith("REQUEST:")) {
                         const filename = msg.slice(8).trim();
                         const file = filesByName[filename];
                         if (!file) return;
-
                         const reader = file.stream().getReader();
                         while (true) {
                             const { done, value } = await reader.read();
@@ -100,6 +93,13 @@
                     ul.appendChild(li);
                 });
             };
+        }
+
+        function sendFileList() {
+            if (dataChannel?.readyState === "open") {
+                const filenames = Object.keys(filesByName).join(";");
+                dataChannel.send("LIST:" + filenames);
+            }
         }
     </script>
 </body>
