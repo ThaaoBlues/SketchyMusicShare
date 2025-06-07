@@ -112,9 +112,3 @@ if __name__ == "__main__":
     hearbeat_thread = Thread(target=heartbeat_thread_body)
     hearbeat_thread.start()
     socketio.run(app, host="0.0.0.0", port=7171, debug=True)
-
-
-
-# TODO : 
-#   - networking : see why the datachannel setup is not printing anything anymore
-#   - find a way to update server hosts list when unexpected pear churn
