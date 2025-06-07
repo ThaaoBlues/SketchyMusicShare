@@ -1,76 +1,76 @@
+// guest_networking.js
 const socket = io();
-let peerId, hostId = null;
-let peerConnections ={}
+let peerId;
+let peerConnections = {};
 let channels = {};
-let incomingChunks = [];
 let listBufferChunks = [];
-let filesSources = {}
+let incomingChunks = [];
+let filesSources = {}; // songName -> {hostId}
 let knownHosts = [];
 
-// ====== Socket.IO Setup ======
-socket.emit("join",{type:"guest"});
+let netPlaylist = [];
 
-socket.on("peer_id", async ({ id,hosts }) => {
+// UI callback placeholders, set by UI script later
+let onPlaylistUpdate = null;
+let onFileDataReceived = null;
+let onFileRequestStarted = null;
+
+socket.emit("join", { type: "guest" });
+
+socket.on("peer_id", async ({ id, hosts }) => {
     peerId = id;
     console.log("Guest joined with ID:", peerId);
 
-    console.log("advetised hosts : ",hosts);
-
-    hosts.forEach(h =>{
-        if(!knownHosts.includes(h)){
-            console.log("New advertised host discovered :",h);
-            console.log("setting up connection...");
+    hosts.forEach(h => {
+        if (!knownHosts.includes(h)) {
+            console.log("New advertised host discovered:", h);
             setupConnection(h);
+            knownHosts.push(h);
         }
     });
 });
 
 socket.on("signal", async ({ from, data }) => {
-    hostId = from;
-    if(data.type == "host"){
-
-        if(!knownHosts.includes(hostId)){
-            console.log("Received signal from new Host !");
-            console.log("Setting up connection to ",hostId)
-            await setupConnection(hostId);
-            knownHosts.push(hostId);
-            if (data.sdp) {
-                await peerConnections[hostId].setRemoteDescription(new RTCSessionDescription(data.sdp));
-            } else if (data.candidate) {
-                await peerConnections[hostId].addIceCandidate(new RTCIceCandidate(data.candidate));
-            }
-        }
-
+    if (!knownHosts.includes(from)) {
+        console.log("Signal from unknown host, setting up:", from);
+        await setupConnection(from);
+        knownHosts.push(from);
     }
-
+    if (data.sdp) {
+        await peerConnections[from].setRemoteDescription(new RTCSessionDescription(data.sdp));
+    } else if (data.candidate) {
+        await peerConnections[from].addIceCandidate(new RTCIceCandidate(data.candidate));
+    }
 });
 
-// ====== WebRTC Setup ======
 async function setupConnection(hostId) {
     peerConnections[hostId] = new RTCPeerConnection();
-
-    peerConnection = peerConnections[hostId];
-
+    const peerConnection = peerConnections[hostId];
 
     peerConnection.onicecandidate = ({ candidate }) => {
-        if (candidate && hostId) {
+        if (candidate) {
             socket.emit("signal", {
                 from: peerId,
                 to: hostId,
-                type : "guest",
-                data: { candidate,type : "guest"}
+                type: "guest",
+                data: { candidate, type: "guest" }
             });
         }
     };
 
-    dataChannel = peerConnection.createDataChannel("music");
+    const dataChannel = peerConnection.createDataChannel("music");
     dataChannel.binaryType = "arraybuffer";
+    channels[hostId] = dataChannel;
 
-    dataChannel.onopen = () => console.log("DataChannel open");
+    dataChannel.onopen = () => {
+        console.log(`DataChannel to host ${hostId} open`);
+    };
 
-    dataChannel.onclose = () => console.log("Closed data channel");
+    dataChannel.onclose = () => {
+        console.log(`DataChannel to host ${hostId} closed`);
+    };
 
-    dataChannel.onmessage = (e) => {handleDataChannelMessage(hostId,e)};
+    dataChannel.onmessage = (e) => handleDataChannelMessage(hostId, e);
 
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
@@ -79,66 +79,11 @@ async function setupConnection(hostId) {
         socket.emit("signal", {
             from: peerId,
             to: hostId,
-            type : "guest",
-            data: { sdp: peerConnection.localDescription,type : "guest"}
+            type: "guest",
+            data: { sdp: peerConnection.localDescription, type: "guest" }
         });
     }, 500);
-
-    channels[hostId] = dataChannel;
-
 }
-
-// ====== Data Channel Message Handling ======
-function handleDataChannelMessage(hostId,e) {
-    if (typeof e.data === "string") {
-
-        if (e.data === "LIST_END") {
-            const combined = concatChunks(listBufferChunks);
-            const decoded = new TextDecoder().decode(combined);
-            if (!decoded.startsWith("LIST:")) {
-                console.warn("Invalid list format");
-                return;
-            }
-            const filenames = decoded.slice(5).split(";");
-            listBufferChunks = [];
-
-            const ul = document.getElementById("availableFiles");
-            ul.innerHTML = "";
-            filenames.forEach(name => {
-                if (!name.trim()) return;
-                const li = document.createElement("li");
-                li.textContent = name;
-                li.onclick = () => {
-                    incomingChunks = [];
-                    channels[hostId].send("REQUEST:" + name);
-                };
-                ul.appendChild(li);
-            });
-
-        } else if (e.data.startsWith("EOF:")) {
-            const blob = new Blob(incomingChunks, { type: "audio/mpeg" });
-            const url = URL.createObjectURL(blob);
-            const player = document.getElementById("player");
-            player.src = url;
-            player.play();
-            incomingChunks = [];
-        }
-
-    } else if (e.data instanceof ArrayBuffer) {
-        const text = new TextDecoder().decode(e.data);
-        if (text.startsWith("LIST_PART:")) {
-            // Remove the prefix before storing
-            const stripped = text.replace(/^LIST_PART:/, '');
-            const encoded = new TextEncoder().encode(stripped);
-            listBufferChunks.push(encoded);
-        } else {
-            // Assume it's music data
-            console.log("Chunk received");
-            incomingChunks.push(e.data);
-        }
-    }
-}
-
 
 function concatChunks(chunks) {
     const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
@@ -151,31 +96,69 @@ function concatChunks(chunks) {
     return result;
 }
 
-// ====== File List UI ======
-function updateFileList(filenames) {
-    const ul = document.getElementById("availableFiles");
-    ul.innerHTML = "";
+function handleDataChannelMessage(hostId, e) {
+    if (typeof e.data === "string") {
+        if (e.data === "LIST_END") {
+            const combined = concatChunks(listBufferChunks);
+            const decoded = new TextDecoder().decode(combined);
+            listBufferChunks = [];
+            if (!decoded.startsWith("LIST:")) {
+                console.warn("Invalid list format");
+                return;
+            }
+            const filenames = decoded.slice(5).split(";").filter(n => n.trim());
 
-    filenames.forEach(name => {
-        const li = document.createElement("li");
-        li.textContent = name;
-        li.onclick = () => {
+            // Merge files uniquely & map sources
+            filenames.forEach(name => {
+                if (!netPlaylist.includes(name)) {
+                    netPlaylist.push(name);
+                    filesSources[name] = { hostId };
+                }
+            });
+
+            if (typeof onPlaylistUpdate === "function") {
+                onPlaylistUpdate(netPlaylist);
+            }
+
+        } else if (e.data.startsWith("EOF:")) {
+            if (typeof onFileDataReceived === "function") {
+                onFileDataReceived(incomingChunks);
+            }
             incomingChunks = [];
-            dataChannel.send("REQUEST:" + name);
-        };
-        ul.appendChild(li);
-    });
+        }
+    } else if (e.data instanceof ArrayBuffer) {
+        try {
+            const text = new TextDecoder().decode(e.data);
+            if (text.startsWith("LIST_PART:")) {
+                const stripped = text.replace(/^LIST_PART:/, '');
+                const encoded = new TextEncoder().encode(stripped);
+                listBufferChunks.push(encoded);
+            } else {
+                incomingChunks.push(e.data);
+            }
+        } catch {
+            incomingChunks.push(e.data);
+        }
+    }
 }
 
-// ====== File Playback ======
-function finalizeFilePlayback() {
-    console.log("YEEPEE! Entire music file received!");
-    const blob = new Blob(incomingChunks, { type: "audio/mpeg" });
-    const url = URL.createObjectURL(blob);
-
-    const player = document.getElementById("player");
-    player.src = url;
-    player.play();
-
+function requestFile(filename) {
     incomingChunks = [];
+    // Find host for the requested file
+    const hostId = filesSources[filename]?.hostId;
+    if (!hostId || !channels[hostId]) {
+        console.warn("No data channel for requested file's host:", filename);
+        return;
+    }
+    if (typeof onFileRequestStarted === "function") {
+        onFileRequestStarted();
+    }
+    channels[hostId].send("REQUEST:" + filename);
 }
+
+window.guestNetworking = {
+    requestFile,
+    setPlaylistUpdateCallback: (cb) => { onPlaylistUpdate = cb; },
+    setFileDataReceivedCallback: (cb) => { onFileDataReceived = cb; },
+    setFileRequestStartedCallback: (cb) => { onFileRequestStarted = cb; }
+};

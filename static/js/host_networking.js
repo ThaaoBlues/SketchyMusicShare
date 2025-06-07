@@ -18,7 +18,7 @@ const waitForBuffer = (guestId) =>
             if (channels[guestId].bufferedAmount < MAX_BUFFERED) {
                 resolve();
             } else {
-                setTimeout(check, 10);
+                setTimeout(check, 1);
             }
         };
         check();
