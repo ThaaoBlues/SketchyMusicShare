@@ -10,6 +10,6 @@
     <ul id="availableFiles"></ul>
     <audio id="player" controls></audio>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-    <script src="static/guest_networking.js"></script>
+    <script src="{{ url_for('static', filename='js/guest_networking.js') }}"></script>
 </body>
 </html>
