@@ -1,0 +1,60 @@
+/* Reset and base styles */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(to right, #1e3c72, #2a5298);
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+}
+
+/* Main player container */
+.player-container {
+    background-color: #1c1c1e;
+    border-radius: 20px;
+    padding: 30px 40px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    max-width: 500px;
+    width: 100%;
+    text-align: center;
+}
+
+/* Header */
+.player-container h1 {
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+}
+
+/* Audio player styling */
+audio {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+/* File section */
+.file-section h2 {
+    font-size: 1.2rem;
+    margin-bottom: 10px;
+}
+
+.file-list {
+    list-style: none;
+    padding: 0;
+    max-height: 200px;
+    overflow-y: auto;
+    border-top: 1px solid #333;
+}
+
+.file-list li {
+    padding: 10px;
+    cursor: pointer;
+    border-bottom: 1px solid #333;
+    transition: background 0.2s ease;
+}
+
+.file-list li:hover {
+    background-color: #333;
+}

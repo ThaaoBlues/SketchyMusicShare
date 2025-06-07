@@ -1,10 +1,36 @@
 const socket = io();
-let peerId, guestId;
+let peerId;
+let knownGuests = {};
+let channels = {};
+let peerConnections = {};
 let peerConnection, dataChannel;
 let filesByName = {};
 
+
+const CHUNK_SIZE = 16 * 1024;
+
+
+const MAX_BUFFERED = 16 * 1024;
+
+const waitForBuffer = (guestId) =>
+    new Promise(resolve => {
+        const check = () => {
+            if (channels[guestId].bufferedAmount < MAX_BUFFERED) {
+                resolve();
+            } else {
+                setTimeout(check, 10);
+            }
+        };
+        check();
+    });
+
+
 // ====== Socket.IO Setup ======
-socket.emit("join");
+socket.emit("join",{type:"host"});
+
+socket.on("heatbeat",()=>{
+    socket.emit("heartbeat",{from : peerId});
+});
 
 socket.on("peer_id", ({ id }) => {
     peerId = id;
@@ -12,49 +38,65 @@ socket.on("peer_id", ({ id }) => {
 });
 
 socket.on("signal", async ({ from, data }) => {
-    if (!peerConnection) {
-        guestId = from;
-        setupConnection();
-    }
-
-    if (data.sdp) {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        if (data.sdp.type === "offer") {
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-            socket.emit("signal", {
-                from: peerId,
-                to: guestId,
-                data: { sdp: peerConnection.localDescription }
-            });
+    console.log("Got signal from guest (1) :",from);
+    console.log(data);
+    if(data.type === "guest"){
+        console.log("Got signal from guest (2) :",from);
+        if (!peerConnections[from]) {
+            guestId = from;
+            setupConnection(guestId);
         }
-    } else if (data.candidate) {
-        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+    
+        if (data.sdp) {
+            await peerConnections[from].setRemoteDescription(new RTCSessionDescription(data.sdp));
+            if (data.sdp.type === "offer") {
+                const answer = await peerConnections[from].createAnswer();
+                await peerConnections[from].setLocalDescription(answer);
+                socket.emit("signal", {
+                    from: peerId,
+                    to: guestId,
+                    type: "host",
+                    data: { sdp: peerConnections[from].localDescription,type:"host" }
+                });
+            }
+        } else if (data.candidate) {
+            await peerConnections[from].addIceCandidate(new RTCIceCandidate(data.candidate));
+        }
     }
+    
 });
 
 // ====== WebRTC Connection ======
-function setupConnection() {
-    peerConnection = new RTCPeerConnection();
+function setupConnection(guestId) {
+    
+    peerConnections[guestId] = new RTCPeerConnection();
+    let peerConnection = peerConnections[guestId];
+
 
     peerConnection.onicecandidate = ({ candidate }) => {
         if (candidate) {
             socket.emit("signal", {
                 from: peerId,
                 to: guestId,
-                data: { candidate }
+                type:"host",
+                data: { candidate,type:"host"}
             });
         }
     };
 
     peerConnection.ondatachannel = ({ channel }) => {
-        dataChannel = channel;
+        channels[guestId] = channel;
+        let dataChannel = channels[guestId];
+
+
         dataChannel.binaryType = "arraybuffer";
 
         dataChannel.onopen = () => {
             console.log("DataChannel is open");
             enableFileSending();
-            setInterval(sendFileList, 5000);
+            setInterval(()=>{
+                sendFileList(guestId);
+            }, 5000);
         };
 
         dataChannel.onclose = () => {
@@ -65,12 +107,13 @@ function setupConnection() {
             console.error("Data channel error:", e);
         };
 
-        dataChannel.onmessage = handleRequest;
+        dataChannel.onmessage = (e)=>{handleRequest(guestId,e)};
     };
+
 }
 
 // ====== Handle Guest File Request ======
-async function handleRequest(e) {
+async function handleRequest(guestId,e) {
     const msg = e.data;
 
     if (typeof msg === "string" && msg.startsWith("REQUEST:")) {
@@ -81,28 +124,15 @@ async function handleRequest(e) {
             return;
         }
 
-        await sendFile(file, filename);
+        await sendFile(guestId,file, filename);
     }
 }
 
 // ====== File Sending Logic ======
-async function sendFile(file, filename) {
+async function sendFile(guestId,file, filename) {
     try {
         const reader = file.stream().getReader();
-        const CHUNK_SIZE = 16 * 1024;
-        const MAX_BUFFERED = 16 * 1024;
-
-        const waitForBuffer = () =>
-            new Promise(resolve => {
-                const check = () => {
-                    if (dataChannel.bufferedAmount < MAX_BUFFERED) {
-                        resolve();
-                    } else {
-                        setTimeout(check, 10);
-                    }
-                };
-                check();
-            });
+        let dataChannel = channels[guestId];
 
         while (true) {
             const { done, value } = await reader.read();
@@ -119,7 +149,7 @@ async function sendFile(file, filename) {
                     return;
                 }
 
-                await waitForBuffer();
+                await waitForBuffer(guestId);
                 try {
                     dataChannel.send(chunk);
                 } catch (e) {
@@ -161,10 +191,27 @@ function enableFileSending() {
 }
 
 // ====== Notify Guest of Available Files ======
-function sendFileList() {
-    if (dataChannel && dataChannel.readyState === "open") {
-        const filenames = Object.keys(filesByName).join(";");
-        dataChannel.send("LIST:" + filenames);
-        console.log("Sent file list");
+function sendFileList(guestId) {
+    let dataChannel = channels[guestId];
+    if (dataChannel.readyState !== "open") return;
+
+    const fullList = Object.keys(filesByName).join(";");
+    const fullListString = "LIST:" + fullList;
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(fullListString);
+
+
+    for (let i = 0; i < encoded.length; i += CHUNK_SIZE) {
+        const chunk = encoded.slice(i, i + CHUNK_SIZE);
+        const prefix = "LIST_PART:";
+        const chunkData = new Blob([
+            new TextEncoder().encode(prefix),
+            chunk
+        ]);
+        chunkData.arrayBuffer().then(buf => dataChannel.send(buf));
     }
+
+    // Send end marker
+    dataChannel.send("LIST_END");
 }
+

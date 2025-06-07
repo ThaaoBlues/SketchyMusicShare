@@ -1,12 +1,18 @@
 from flask import Flask, send_from_directory, request,render_template
 from flask_socketio import SocketIO, emit
 import socket
+from threading import Thread, Lock
+from time import sleep
+
 
 app = Flask(__name__, static_folder="static")
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+hosts_lock = Lock()
+
 # In-memory peer signaling
 peers = {}
+hosts = []
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -20,6 +26,7 @@ def get_local_ip():
 def handle_signal(data):
     target_id = data.get("to")
     sender_id = data.get("from")
+    print(data)
     print(peers)
     print("target_id=",target_id)
     if target_id in peers:
@@ -33,17 +40,37 @@ def handle_signal(data):
 
 
 @socketio.on('join')
-def handle_join():
+def handle_join(data):
     sid = request.sid
     peers[sid] = True
-    emit("peer_id", {"id": sid})
+    emit("peer_id", {"id": sid,"hosts": hosts})
+    if(data["type"] == "host"):
+        print("new host discovered :",sid)
+        hosts.append(sid)
+
     print(f"Client joined: {sid}")
+
+@socketio.on('heartbeat')
+def handle_heartbeat(data):
+
+    hostId = data.get('from')
+    print("got heatbeat from",hostId)
+    with hosts_lock:
+        hosts.append(hostId)
+
+
+    
 
 @socketio.on('disconnect')
 def handle_disconnect(truc):
     print(truc)
     sid = request.sid
     peers.pop(sid, None)
+
+    with hosts_lock:
+        if sid in hosts:
+            hosts.remove(hosts.index(sid))
+
     print(f"Client left: {sid}")
 
 @app.route('/')
@@ -62,5 +89,32 @@ def guest():
 def default_error_handler(e):
     print("SocketIO error:", e)
 
+
+
+
+def heartbeat_thread_body():
+
+    while True:
+        sleep(5)
+
+        try:
+            with hosts_lock:
+                for i in range(len(hosts)):
+                    h = hosts.pop()
+                    socketio.emit('heatbeat',room=h)
+        except:
+            print("shit hit the fan trying to send heatbeats")
+            pass
+
+
+
 if __name__ == "__main__":
+    hearbeat_thread = Thread(target=heartbeat_thread_body)
+    hearbeat_thread.start()
     socketio.run(app, host="0.0.0.0", port=7171, debug=True)
+
+
+
+# TODO : 
+#   - networking : see why the datachannel setup is not printing anything anymore
+#   - find a way to update server hosts list when unexpected pear churn
