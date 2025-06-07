@@ -54,21 +54,103 @@
                     enableFileSending();
                     setInterval(sendFileList, 5000); // Regular updates
                 };
+
+                dataChannel.onclose = (ev) =>{
+                    console.log("data channel closed, trying to recover by sending a signal.");
+                    
+                    /*socket.emit("signal", {
+                        from: peerId,
+                        to: guestId,
+                        data: { sdp: peerConnection.localDescription }
+                    });
+                    console.log("signal sent !");*/
+                }
+
+                dataChannel.onerror = (e) => {
+                    console.error("DATA CHANNEL ERROR :"+e);
+                    console.log(e);
+                };
+
+
                 dataChannel.onmessage = async (e) => {
                     const msg = e.data;
+
                     if (typeof msg === "string" && msg.startsWith("REQUEST:")) {
                         const filename = msg.slice(8).trim();
                         const file = filesByName[filename];
-                        if (!file) return;
-                        const reader = file.stream().getReader();
-                        while (true) {
-                            const { done, value } = await reader.read();
-                            if (done) break;
-                            dataChannel.send(value);
+                        if (!file) {
+                            console.warn("Requested file not found:", filename);
+                            return;
                         }
+
+                    
+
+                        const sendFile = async () => {
+                            try {
+                                const reader = file.stream().getReader();
+                                const CHUNK_SIZE = 16 * 1024;
+                                const CHUNK_DELAY = 1000;
+                                const MAX_BUFFERED = 16*1024; // 16KB
+
+                                const waitForBuffer = () =>
+                                    new Promise(resolve => {
+                                        console.log("waiting buffer drain");
+                                        const check = () => {
+                                            if (dataChannel.bufferedAmount < MAX_BUFFERED){
+                                                console.log("buffer drained");
+                                                resolve();
+                                            } 
+                                            else{
+                                                console.log("Buffer plein");
+                                                setTimeout(check, 10);
+                                            } 
+                                        };
+                                        check();
+
+                                    });
+
+                                while (true) {
+                                    const { done, value } = await reader.read();
+                                    
+                                    if (done) {
+                                        //signal the end of transfer
+                                        dataChannel.send("EOF:"+filename);
+                                        console.log("Finished sending:", filename);
+                                        break;
+                                    }else{
+                                        console.log("read chunk size = ",value.length);
+                                    }
+
+                                    if (dataChannel.readyState !== "open") {
+                                        console.warn("DataChannel closed during transfer.");
+                                        break;
+                                    }
+
+                                    //await waitForBuffer();
+
+                                    // Manually split value into 8 KB slices
+                                    for (let i = 0; i < value.length; i += CHUNK_SIZE) {
+                                        const chunk = value.slice(i, i + CHUNK_SIZE);
+                                        await waitForBuffer(); // flow control
+                                        try {
+                                            dataChannel.send(chunk);
+                                        } catch (e) {
+                                            console.error("Send failed", e);
+                                            return;
+                                        }
+                                    }
+                                    //dataChannel.send(value);
+                                    //if (CHUNK_DELAY) await new Promise(r => setTimeout(r, CHUNK_DELAY));
+                                }
+
+                            } catch (err) {
+                                console.error("File transfer failed:", err.message);
+                            }
+                        };
+
+                        sendFile(); // Kick off file sending
                     }
                 };
-            };
 
             peerConnection.onicecandidate = (e) => {
                 if (e.candidate) {
@@ -80,11 +162,15 @@
                 }
             };
         }
+    
+    }
 
         function enableFileSending() {
-            document.getElementById("music").onchange = (e) => {
+            const ul = document.getElementById("fileList");
+
+            const music_input = document.getElementById("music");
+            music_input.onchange = (e) => {
                 const files = Array.from(e.target.files);
-                const ul = document.getElementById("fileList");
                 ul.innerHTML = "";
                 files.forEach(file => {
                     filesByName[file.name] = file;
@@ -93,10 +179,22 @@
                     ul.appendChild(li);
                 });
             };
+
+
+            // in case connexion is made after user upload
+            Array.from(music_input.files).forEach(file => {
+                    filesByName[file.name] = file;
+                    const li = document.createElement("li");
+                    li.textContent = file.name;
+                    ul.appendChild(li);
+            });
+
+
         }
 
         function sendFileList() {
-            if (dataChannel?.readyState === "open") {
+            if (dataChannel.readyState === "open") {
+                console.log("Sending file list refresh");
                 const filenames = Object.keys(filesByName).join(";");
                 dataChannel.send("LIST:" + filenames);
             }

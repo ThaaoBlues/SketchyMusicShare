@@ -1,11 +1,20 @@
 from flask import Flask, send_from_directory, request,render_template
 from flask_socketio import SocketIO, emit
+import socket
 
 app = Flask(__name__, static_folder="static")
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # In-memory peer signaling
 peers = {}
+
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("8.8.8.8", 80))
+    ip = s.getsockname()[0]
+    s.close()
+    return ip
+
 
 @socketio.on('signal')
 def handle_signal(data):
@@ -39,6 +48,10 @@ def handle_disconnect(truc):
 
 @app.route('/')
 def index():
+    return render_template("index.html",server_ip=get_local_ip())
+
+@app.route('/host')
+def host():
     return render_template("host.html")
 
 @app.route('/guest')
@@ -50,4 +63,4 @@ def default_error_handler(e):
     print("SocketIO error:", e)
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=5000, debug=True)
+    socketio.run(app, host="0.0.0.0", port=7171, debug=True)
