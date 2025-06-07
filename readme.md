@@ -6,4 +6,4 @@ Signaling server is in python.
 
 > Basic use case comes from the fact that all my music is stored on my phone and I sometimes want to listen to music while using my laptop.
 
-## DISCLAIMER : that shit is sketchy and slow as I must implement song prefetching but i'm too lazy right now. It will happen when the loading time bother me to much.
+> Current problem is that you have to go back to the browser tab for the transfert to proceed if your phone went into sleep mode
