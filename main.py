@@ -47,9 +47,10 @@ def handle_join(data):
     match data["type"]:
         case "host":
             print("new host discovered :",sid)
+            print("notifying present guests of the new host")
+
             with hosts_lock:
                 hosts.append(sid)
-                print("notifying present guests of the new host")
                 for g in guests:
                     emit("hosts-list-update", {"hosts": hosts},room=g)
 

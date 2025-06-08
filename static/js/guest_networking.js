@@ -3,8 +3,9 @@ const socket = io();
 let peerId;
 let peerConnections = {};
 let channels = {};
-let listBufferChunks = [];
+let listBufferChunks = {};  // hostId -> chunks[]
 let incomingChunks = [];
+/** @type {Record<string, Set<string>>} */
 let filesSources = {}; // songName -> {hostId}
 let knownHosts = [];
 
@@ -21,11 +22,12 @@ socket.on("peer_id", async ({ id, hosts }) => {
     peerId = id;
     console.log("Guest joined with ID:", peerId);
 
-    hosts.forEach(h => {
-        if (!knownHosts.includes(h)) {
-            console.log("New advertised host discovered:", h);
-            setupConnection(h);
-            knownHosts.push(h);
+    hosts.forEach(async h => {
+        const hostId =h;
+        if (!knownHosts.includes(hostId)) {
+            console.log("New advertised host discovered:", hostId);
+            await setupConnection(hostId);
+            knownHosts.push(hostId);
         }
     });
 });
@@ -33,18 +35,20 @@ socket.on("peer_id", async ({ id, hosts }) => {
 socket.on("hosts-list-update", async ({hosts}) => {
     console.log("Got an hosts list update !",hosts);
     // add new hosts
-    hosts.forEach(async h => {
-        if (!knownHosts.includes(h)) {
-            console.log("New advertised host discovered:", h);
-            await setupConnection(h);
-            knownHosts.push(h);
+    hosts.forEach(h => {
+        const hostId = h;
+        if (!knownHosts.includes(hostId)) {
+            console.log("New advertised host discovered:", hostId);
+            setupConnection(hostId);
+            knownHosts.push(hostId);
         }
     });
 
     // remove old connections if not already made
     knownHosts.forEach(h=>{
-        if(!hosts.includes(h)){
-            knownHosts.splice(knownHosts.indexOf(h),1);
+        const hostId = h;
+        if(!hosts.includes(hostId)){
+            knownHosts.splice(knownHosts.indexOf(hostId),1);
         }
     });
 
@@ -63,9 +67,13 @@ socket.on("signal", async ({ from, data }) => {
     }
 });
 
-async function setupConnection(hostId) {
+async function setupConnection(h) {
+
+    const hostId = h;
+
     peerConnections[hostId] = new RTCPeerConnection();
     const peerConnection = peerConnections[hostId];
+
 
     peerConnection.onicecandidate = ({ candidate }) => {
         if (candidate) {
@@ -87,7 +95,8 @@ async function setupConnection(hostId) {
     };
 
     dataChannel.onclose = () => {
-        knownHosts.splice(knownHosts.indexOf(hostId),1);
+        cleanupHost(hostId);
+        
         console.log(`DataChannel to host ${hostId} closed`);
     };
 
@@ -116,25 +125,31 @@ function concatChunks(chunks) {
     }
     return result;
 }
+function handleDataChannelMessage(h, e) {
+    const hostId = h;
 
-function handleDataChannelMessage(hostId, e) {
     if (typeof e.data === "string") {
         if (e.data === "LIST_END") {
-            const combined = concatChunks(listBufferChunks);
+            const chunks = listBufferChunks[hostId] || [];
+            const combined = concatChunks(chunks);
             const decoded = new TextDecoder().decode(combined);
-            listBufferChunks = [];
+            delete listBufferChunks[hostId];  // cleanup
+
             if (!decoded.startsWith("LIST:")) {
-                console.warn("Invalid list format");
+                console.warn("Invalid list format from", hostId);
                 return;
             }
+
             const filenames = decoded.slice(5).split(";").filter(n => n.trim());
 
-            // Merge files uniquely & map sources
             filenames.forEach(name => {
                 if (!netPlaylist.includes(name)) {
                     netPlaylist.push(name);
-                    filesSources[name] = { hostId };
                 }
+                if (!filesSources[name]) {
+                    filesSources[name] = new Set();
+                }
+                filesSources[name].add(hostId);
             });
 
             if (typeof onPlaylistUpdate === "function") {
@@ -146,6 +161,7 @@ function handleDataChannelMessage(hostId, e) {
                 onFileDataReceived(incomingChunks);
             }
             incomingChunks = [];
+
         }
     } else if (e.data instanceof ArrayBuffer) {
         try {
@@ -153,7 +169,10 @@ function handleDataChannelMessage(hostId, e) {
             if (text.startsWith("LIST_PART:")) {
                 const stripped = text.replace(/^LIST_PART:/, '');
                 const encoded = new TextEncoder().encode(stripped);
-                listBufferChunks.push(encoded);
+
+                if (!listBufferChunks[hostId]) listBufferChunks[hostId] = [];
+                listBufferChunks[hostId].push(encoded);
+
             } else {
                 incomingChunks.push(e.data);
             }
@@ -163,18 +182,51 @@ function handleDataChannelMessage(hostId, e) {
     }
 }
 
+
 function requestFile(filename) {
     incomingChunks = [];
-    // Find host for the requested file
-    const hostId = filesSources[filename]?.hostId;
-    if (!hostId || !channels[hostId]) {
-        console.warn("No data channel for requested file's host:", filename);
+    const hostSet = filesSources[filename];
+    if (!hostSet || hostSet.size === 0) {
+        console.warn("No host available for file:", filename);
         return;
     }
+
+    const availableHostIds = [...hostSet].filter(id => channels[id]?.readyState === "open");
+
+    if (availableHostIds.length === 0) {
+        console.warn("No open channels for file:", filename);
+        return;
+    }
+
+    const hostId = availableHostIds[Math.floor(Math.random() * availableHostIds.length)];
+
     if (typeof onFileRequestStarted === "function") {
         onFileRequestStarted();
     }
     channels[hostId].send("REQUEST:" + filename);
+}
+
+function cleanupHost(hostId) {
+    // Remove from known hosts
+    knownHosts = knownHosts.filter(h => h !== hostId);
+
+    // Remove from filesSources
+    for (const [file, hostsSet] of Object.entries(filesSources)) {
+        hostsSet.delete(hostId);
+        if (hostsSet.size === 0) {
+            delete filesSources[file];
+            netPlaylist = netPlaylist.filter(f => f !== file);
+        }
+    }
+
+    // Clean connections
+    delete peerConnections[hostId];
+    delete channels[hostId];
+
+    // Notify UI
+    if (typeof onPlaylistUpdate === "function") {
+        onPlaylistUpdate(netPlaylist);
+    }
 }
 
 window.guestNetworking = {
