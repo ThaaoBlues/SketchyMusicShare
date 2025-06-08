@@ -1,39 +1,28 @@
-// guest_ui.js
-
 const player = document.getElementById("player");
 const fileListUL = document.getElementById("availableFiles");
+const searchInput = document.getElementById("searchInput");
 
 let playlist = [];
+let filteredPlaylist = [];
 let currentIndex = -1;
-let playbackMode = 'sequential'; // 'sequential', 'shuffle', 'loop'
+let playbackMode = 'sequential';
 
-// Setup UI controls and loading indicator
 function setupUI() {
-    const container = document.createElement("div");
-    container.style.marginBottom = "10px";
+    updateModeButtons();
 
-    const modes = ['sequential', 'shuffle', 'loop'];
-    modes.forEach(mode => {
-        const btn = document.createElement("button");
-        btn.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-        btn.id = `btn-${mode}`;
-        btn.style.marginRight = "8px";
-        btn.onclick = () => {
-            playbackMode = mode;
-            updateModeButtons();
-        };
-        container.appendChild(btn);
+    searchInput.addEventListener("input", () => {
+        const query = searchInput.value.toLowerCase();
+        filteredPlaylist = playlist.filter(name => name.toLowerCase().includes(query));
+        updatePlaylistUI(filteredPlaylist);
     });
 
-    const loading = document.createElement("div");
-    loading.id = "loadingSpinner";
-    loading.style.display = "none";
-    loading.style.marginTop = "10px";
-    loading.textContent = "Loading... 🎧";
-    container.appendChild(loading);
+    document.getElementById("btn-sequential").onclick = () => setMode('sequential');
+    document.getElementById("btn-shuffle").onclick = () => setMode('shuffle');
+    document.getElementById("btn-loop").onclick = () => setMode('loop');
+}
 
-    fileListUL.parentNode.insertBefore(container, fileListUL);
-
+function setMode(mode) {
+    playbackMode = mode;
     updateModeButtons();
 }
 
@@ -41,32 +30,24 @@ function updateModeButtons() {
     ['sequential', 'shuffle', 'loop'].forEach(mode => {
         const btn = document.getElementById(`btn-${mode}`);
         if (btn) {
-            btn.style.fontWeight = (mode === playbackMode) ? 'bold' : 'normal';
-            btn.style.backgroundColor = (mode === playbackMode) ? '#4CAF50' : '';
-            btn.style.color = (mode === playbackMode) ? 'white' : '';
+            const active = (mode === playbackMode);
+            btn.classList.toggle("active", active);
         }
     });
 }
 
 function showLoading(show) {
     const loading = document.getElementById("loadingSpinner");
-    if (!loading) return;
-    loading.style.display = show ? "block" : "none";
+    if (loading) loading.style.display = show ? "block" : "none";
 }
 
-function updatePlaylistUI(newPlaylist) {
-    playlist = newPlaylist;
+function updatePlaylistUI(currentList = playlist) {
     fileListUL.innerHTML = "";
-    playlist.forEach((filename, idx) => {
+    currentList.forEach((filename, idx) => {
         const li = document.createElement("li");
         li.textContent = filename;
-        li.style.cursor = "pointer";
-        li.style.padding = "4px";
-        if (idx === currentIndex) {
-            li.style.backgroundColor = "#ddd";
-            li.style.fontWeight = "bold";
-        }
-        li.onclick = () => playTrackAtIndex(idx);
+        li.className = (playlist.indexOf(filename) === currentIndex) ? "active" : "";
+        li.onclick = () => playTrackAtIndex(playlist.indexOf(filename));
         fileListUL.appendChild(li);
     });
 }
@@ -75,7 +56,7 @@ function playTrackAtIndex(idx) {
     if (idx < 0 || idx >= playlist.length) return;
     currentIndex = idx;
     guestNetworking.requestFile(playlist[currentIndex]);
-    updatePlaylistUI(playlist);
+    updatePlaylistUI(filteredPlaylist.length ? filteredPlaylist : playlist);
     showLoading(true);
 }
 
@@ -87,16 +68,14 @@ function onFileFullyReceived(chunks) {
     player.play();
 }
 
-// Auto-advance when current song ends
 player.onended = () => {
+    if (playlist.length === 0) return;
     if (playbackMode === "loop") {
         player.play();
     } else if (playbackMode === "shuffle") {
-        if (playlist.length === 0) return;
         const nextIndex = Math.floor(Math.random() * playlist.length);
         playTrackAtIndex(nextIndex);
     } else {
-        if (playlist.length === 0) return;
         let nextIndex = currentIndex + 1;
         if (nextIndex >= playlist.length) nextIndex = 0;
         playTrackAtIndex(nextIndex);
@@ -105,9 +84,11 @@ player.onended = () => {
 
 window.onload = () => {
     setupUI();
-
-    // Hook networking callbacks
-    guestNetworking.setPlaylistUpdateCallback(updatePlaylistUI);
+    guestNetworking.setPlaylistUpdateCallback((newList) => {
+        playlist = newList;
+        filteredPlaylist = [];
+        updatePlaylistUI(playlist);
+    });
     guestNetworking.setFileDataReceivedCallback(onFileFullyReceived);
     guestNetworking.setFileRequestStartedCallback(() => showLoading(true));
 };

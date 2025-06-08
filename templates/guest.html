@@ -1,25 +1,40 @@
-<!-- guest.html -->
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Guest</title>
-<link rel="stylesheet" href="{{ url_for('static', filename='css/guest.css') }}">
+  <title>Guest Player</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/guest.css') }}">
 </head>
 <body>
-    <div class="player-container">
-        <h1>🎵 Guest Music Player</h1>
+  <div class="app-container">
+    <aside class="sidebar">
+      <h1>🎧 SketchyMusicStream</h1>
+    </aside>
 
+    <main class="main-content">
+      <header class="topbar">
+        <input type="text" id="searchInput" placeholder="Search for a track..." />
+      </header>
+
+      <section class="player-section">
         <audio id="player" controls></audio>
+        <div id="loadingSpinner" class="loading">Loading... 🎧</div>
+      </section>
 
-        <div class="file-section">
-            <h2>Available Tracks</h2>
-            <ul id="availableFiles" class="file-list"></ul>
-        </div>
-    </div>
+      <section class="file-section">
+        <h2>Available Tracks</h2>
+        <ul id="availableFiles" class="file-list"></ul>
+      </section>
 
-    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
-    <script src="{{ url_for('static', filename='js/guest_networking.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/guest_ui.js') }}"></script>
+      <footer class="controls">
+        <button id="btn-sequential">Sequential</button>
+        <button id="btn-shuffle">Shuffle</button>
+        <button id="btn-loop">Loop</button>
+      </footer>
+    </main>
+  </div>
 
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script src="{{ url_for('static', filename='js/guest_networking.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/guest_ui.js') }}"></script>
 </body>
 </html>
