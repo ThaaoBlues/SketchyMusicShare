@@ -30,6 +30,26 @@ socket.on("peer_id", async ({ id, hosts }) => {
     });
 });
 
+socket.on("hosts-list-update", async ({hosts}) => {
+    console.log("Got an hosts list update !",hosts);
+    // add new hosts
+    hosts.forEach(async h => {
+        if (!knownHosts.includes(h)) {
+            console.log("New advertised host discovered:", h);
+            await setupConnection(h);
+            knownHosts.push(h);
+        }
+    });
+
+    // remove old connections if not already made
+    knownHosts.forEach(h=>{
+        if(!hosts.includes(h)){
+            knownHosts.splice(knownHosts.indexOf(h),1);
+        }
+    });
+
+});
+
 socket.on("signal", async ({ from, data }) => {
     if (!knownHosts.includes(from)) {
         console.log("Signal from unknown host, setting up:", from);
@@ -67,6 +87,7 @@ async function setupConnection(hostId) {
     };
 
     dataChannel.onclose = () => {
+        knownHosts.splice(knownHosts.indexOf(hostId),1);
         console.log(`DataChannel to host ${hostId} closed`);
     };
 

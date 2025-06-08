@@ -13,6 +13,7 @@ hosts_lock = Lock()
 # In-memory peer signaling
 peers = {}
 hosts = []
+guests = []
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -38,15 +39,22 @@ def handle_signal(data):
             if(tid != sender_id):
                 socketio.emit('signal', data, room=tid)
 
-
 @socketio.on('join')
 def handle_join(data):
     sid = request.sid
     peers[sid] = True
     emit("peer_id", {"id": sid,"hosts": hosts})
-    if(data["type"] == "host"):
-        print("new host discovered :",sid)
-        hosts.append(sid)
+    match data["type"]:
+        case "host":
+            print("new host discovered :",sid)
+            with hosts_lock:
+                hosts.append(sid)
+                print("notifying present guests of the new host")
+                for g in guests:
+                    emit("hosts-list-update", {"hosts": hosts},room=g)
+
+        case "guest":
+            guests.append(sid)
 
     print(f"Client joined: {sid}")
 
@@ -69,7 +77,7 @@ def handle_disconnect(truc):
 
     with hosts_lock:
         if sid in hosts:
-            hosts.remove(hosts.index(sid))
+            hosts.remove(sid)
 
     print(f"Client left: {sid}")
 
