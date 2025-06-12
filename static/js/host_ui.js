@@ -1,5 +1,9 @@
 let wakeLock = null;
 
+window.onload((ev)=>{
+  keepAwake();
+});
+
 async function keepAwake() {
   try {
     wakeLock = await navigator.wakeLock.request('screen');
