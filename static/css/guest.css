@@ -17,14 +17,20 @@ body {
   height: 100%;
 }
 
+
 .sidebar {
-  display: none; /* Hidden by default on mobile */
-  background-color: #000;
-  padding: 20px;
+  display: block;
+  position: fixed;
+  height: fit-content;
+  width: fit-content;
+  background-color: transparent;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
 }
 
-.sidebar h1 {
+
+.logo {
+  margin-left: 1vw;
+  position: fixed;
   font-size: 1.5rem;
   color: #1db954;
 }
@@ -52,7 +58,7 @@ body {
   outline: none;
   background: #2c2c2c;
   color: white;
-  font-size: 1rem;
+  font-size: 1.5rem;
 }
 
 .player-section {
@@ -78,7 +84,7 @@ audio {
 }
 
 .file-section h2 {
-  font-size: 1.2rem;
+  font-size: 1.5rem;
   border-bottom: 1px solid #444;
   padding-bottom: 5px;
 }
@@ -90,10 +96,12 @@ audio {
 }
 
 .file-list li {
+  border-radius: 10px;
   padding: 12px 16px;
   border-bottom: 1px solid #333;
   cursor: pointer;
   transition: background 0.2s;
+  margin-top: 2px;
 }
 
 .file-list li:hover {
@@ -107,7 +115,10 @@ audio {
 }
 
 .controls {
-  position: fixed;
+  width: fit-content;
+  margin-left: auto;
+  margin-right: auto;
+  position:sticky;
   bottom: 2vh;
   display: flex;
   flex-wrap: wrap;
@@ -146,11 +157,6 @@ audio {
   .app-container {
     flex-direction: row;
     height: 100vh;
-  }
-
-  .sidebar {
-    display: block;
-    width: 240px;
   }
 
   .main-content {
