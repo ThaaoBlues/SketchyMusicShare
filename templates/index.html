@@ -3,21 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <script src="{{ url_for('static', filename='js/index.js') }}"></script>
+    <title>SketchyMusicShare - P2P Music Sharing</title>
 </head>
 <body>
     <fieldset>
-        <a href="/host">Host</a>
-        <a href="/guest">Stream</a>
-    </fieldset>
-
-    <fieldset>
-        <img id="host_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:7171/host" alt="">
-        <label for="host_qr">Scan this to share your music files.</label>
-        <img id="guest_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:7171/guest" alt="">
-        <label for="host_qr">Scan this to stream the music files.</label>
-
-    
+        <legend>SketchyMusicShare - P2P Music Sharing</legend>
+        <a href="/create_room">Create sharing room</a>
+        <button onclick="prompt_and_joint_room(true)">Join room as an Host</button>
+        <button onclick="prompt_and_joint_room(false)">Stream music from a room</button>
     </fieldset>
 
 </body>

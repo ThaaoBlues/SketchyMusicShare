@@ -3,17 +3,12 @@ from flask_socketio import SocketIO, emit
 import socket
 from threading import Thread, Lock
 from time import sleep
+from database import *
+from random import randrange
 
 
 app = Flask(__name__, static_folder="static")
 socketio = SocketIO(app, cors_allowed_origins="*")
-
-hosts_lock = Lock()
-
-# In-memory peer signaling
-peers = {}
-hosts = []
-guests = []
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -27,35 +22,40 @@ def get_local_ip():
 def handle_signal(data):
     target_id = data.get("to")
     sender_id = data.get("from")
-    print(data)
-    print(peers)
+    room_id = data.get("room_id")
+
     print("target_id=",target_id)
+    peers_data = get_peers_in_room(room_id=room_id)
+    peers = [p for (p,t) in peers_data]
     if target_id in peers:
         print("broadcasting signal to ",target_id)
         socketio.emit('signal', data, room=target_id)
 
     elif target_id == None:
-        for tid in peers.keys():
+        for tid in peers:
             if(tid != sender_id):
                 socketio.emit('signal', data, room=tid)
 
 @socketio.on('join')
 def handle_join(data):
+    room_id = data["room_id"]
     sid = request.sid
-    peers[sid] = True
-    emit("peer_id", {"id": sid,"hosts": hosts})
-    match data["type"]:
-        case "host":
-            print("new host discovered :",sid)
-            print("notifying present guests of the new host")
 
-            with hosts_lock:
-                hosts.append(sid)
-                for g in guests:
-                    emit("hosts-list-update", {"hosts": hosts},room=g)
 
-        case "guest":
-            guests.append(sid)
+    if not room_exists(room_id):
+        emit("error", {"message": "Room does not exist"})
+        return
+
+    hosts = get_hosts_in_room(room_id=room_id)
+
+    add_peer(sid, room_id, data["type"])
+    
+    emit("peer_id", {"id": sid,"hosts": hosts,"room_id":room_id})
+
+    if(data["type"] == "guest"):
+        for g in get_guests_in_room(room_id=room_id):
+
+            emit("hosts-list-update", {"hosts": hosts},room=g[0])
 
     print(f"Client joined: {sid}")
 
@@ -64,8 +64,8 @@ def handle_heartbeat(data):
 
     hostId = data.get('from')
     print("got heatbeat from",hostId)
-    with hosts_lock:
-        hosts.append(hostId)
+
+    # TODO : implement heartbeat with database without whiping it ?
 
 
     
@@ -74,11 +74,9 @@ def handle_heartbeat(data):
 def handle_disconnect(truc):
     print(truc)
     sid = request.sid
-    peers.pop(sid, None)
+    remove_peer(sid)
 
-    with hosts_lock:
-        if sid in hosts:
-            hosts.remove(sid)
+    # TODO : if not peers in room anymore, remove room
 
     print(f"Client left: {sid}")
 
@@ -86,13 +84,24 @@ def handle_disconnect(truc):
 def index():
     return render_template("index.html",server_ip=get_local_ip())
 
-@app.route('/host')
-def host():
-    return render_template("host.html")
+@app.route('/host/<room_id>')
+def host(room_id):
+    if not room_exists(room_id):
+        return "Room not found", 404
+    return render_template("host.html", room_id=room_id, server_ip=get_local_ip())
 
-@app.route('/guest')
-def guest():
-    return render_template("guest.html")
+@app.route('/guest/<room_id>')
+def guest(room_id):
+    if not room_exists(room_id):
+        return "Room not found", 404
+    return render_template("guest.html", room_id=room_id, server_ip=get_local_ip())
+
+
+@app.route('/create_room')
+def create_room_route():
+    room_id = create_room()
+    return render_template("host.html", room_id=room_id, server_ip=get_local_ip())
+
 
 @socketio.on_error_default
 def default_error_handler(e):
@@ -105,12 +114,10 @@ def heartbeat_thread_body():
 
     while True:
         sleep(5)
-
+        #hosts  = ?
         try:
-            with hosts_lock:
-                for i in range(len(hosts)):
-                    h = hosts.pop()
-                    socketio.emit('heatbeat',room=h)
+
+            socketio.emit('heatbeat',room=h)
         except:
             print("shit hit the fan trying to send heatbeats")
             pass
@@ -118,6 +125,7 @@ def heartbeat_thread_body():
 
 
 if __name__ == "__main__":
+    init_db()
     hearbeat_thread = Thread(target=heartbeat_thread_body)
-    hearbeat_thread.start()
+    #hearbeat_thread.start()
     socketio.run(app, host="0.0.0.0", port=7171, debug=True)

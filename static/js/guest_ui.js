@@ -91,4 +91,6 @@ window.onload = () => {
     });
     guestNetworking.setFileDataReceivedCallback(onFileFullyReceived);
     guestNetworking.setFileRequestStartedCallback(() => showLoading(true));
+    start_networking();
+
 };

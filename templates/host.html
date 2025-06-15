@@ -5,11 +5,32 @@
     <title>Host - P2P Music Share</title>
 </head>
 <body>
-    <h2>Host: Share Your Music</h2>
-    <input type="file" id="music" accept="audio/*" multiple>
-    <ul id="fileList"></ul>
+    <fieldset>
+        <legend>Click here and select all your musics !</legend>
+        <h2>Host: Share Your Music</h2>
+        <input type="file" id="music" accept="audio/*" multiple>    
+    </fieldset>
+
+    <fieldset>
+        <legend>If someone is streaming, your uploaded files are listed there !</legend>
+         <ul id="fileList"></ul>
+    </fieldset>
+
+    <fieldset>
+        <legend>
+            Access the room
+        </legend>
+        <img id="host_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:7171/host/{{room_id}}" alt="">
+        <label for="host_qr">Scan or share the link to share your music files. (you are already here)</label>
+        <a href="http://{{server_ip}}:7171/host/{{room_id}}">http://{{server_ip}}:7171/host/{{room_id}}</a>
+        <img id="guest_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:7171/guest/{{room_id}}" alt="">
+        <label for="host_qr">Scan this or click the link to stream the music files.</label>
+        <a href="http://{{server_ip}}:7171/guest/{{room_id}}">Stream</a>
+
+    </fieldset>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <script src="{{ url_for('static', filename='js/host_networking.js') }}"></script>
+    <script>window.ROOM_ID = "{{room_id}}"</script>
     <script src="{{ url_for('static', filename='js/host_ui.js') }}"></script>
 
 </body>

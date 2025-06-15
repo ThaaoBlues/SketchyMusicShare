@@ -10,13 +10,19 @@ let filesSources = {}; // songName -> {hostId}
 let knownHosts = [];
 
 let netPlaylist = [];
+let ROOM_ID;
+
 
 // UI callback placeholders, set by UI script later
 let onPlaylistUpdate = null;
 let onFileDataReceived = null;
 let onFileRequestStarted = null;
 
-socket.emit("join", { type: "guest" });
+function start_networking(){
+    ROOM_ID = window.ROOM_ID;
+    socket.emit("join", { type: "guest",room_id:ROOM_ID });
+    console.log("sent socketio join event");
+}
 
 socket.on("peer_id", async ({ id, hosts }) => {
     peerId = id;
@@ -81,6 +87,7 @@ async function setupConnection(h) {
                 from: peerId,
                 to: hostId,
                 type: "guest",
+                room_id:ROOM_ID,
                 data: { candidate, type: "guest" }
             });
         }
@@ -110,6 +117,7 @@ async function setupConnection(h) {
             from: peerId,
             to: hostId,
             type: "guest",
+            room_id:ROOM_ID,
             data: { sdp: peerConnection.localDescription, type: "guest" }
         });
     }, 500);

@@ -5,6 +5,7 @@ let channels = {};
 let peerConnections = {};
 let peerConnection, dataChannel;
 let filesByName = {};
+let ROOM_ID;
 
 
 const CHUNK_SIZE = 16 * 1024;
@@ -26,7 +27,10 @@ const waitForBuffer = (guestId) =>
 
 
 // ====== Socket.IO Setup ======
-socket.emit("join",{type:"host"});
+function start_networking(){
+    ROOM_ID = window.ROOM_ID;
+    socket.emit("join",{type:"host",room_id:ROOM_ID});
+}
 
 socket.on("heatbeat",()=>{
     socket.emit("heartbeat",{from : peerId});
@@ -56,6 +60,7 @@ socket.on("signal", async ({ from, data }) => {
                     from: peerId,
                     to: guestId,
                     type: "host",
+                    room_id:ROOM_ID,
                     data: { sdp: peerConnections[from].localDescription,type:"host" }
                 });
             }
@@ -79,6 +84,7 @@ function setupConnection(guestId) {
                 from: peerId,
                 to: guestId,
                 type:"host",
+                room_id:ROOM_ID,
                 data: { candidate,type:"host"}
             });
         }

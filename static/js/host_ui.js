@@ -1,8 +1,9 @@
 let wakeLock = null;
 
-window.onload((ev)=>{
+window.onload = (ev)=>{
   keepAwake();
-});
+  start_networking();
+};
 
 async function keepAwake() {
   try {
