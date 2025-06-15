@@ -65,7 +65,6 @@ def handle_heartbeat(data):
     hostId = data.get('from')
     print("got heatbeat from",hostId)
 
-    # TODO : implement heartbeat with database without whiping it ?
 
 
     
@@ -132,3 +131,7 @@ if __name__ == "__main__":
     hearbeat_thread = Thread(target=heartbeat_thread_body)
     #hearbeat_thread.start()
     socketio.run(app, host="0.0.0.0", port=7171, debug=True)
+
+    # TODO : implement heartbeat with database without whiping it ?
+    # TODO : (test) if not peers in room anymore, remove room
+    # TODO : add room_id, qr codes, links to guest interface too
