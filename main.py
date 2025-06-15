@@ -74,9 +74,12 @@ def handle_heartbeat(data):
 def handle_disconnect(truc):
     print(truc)
     sid = request.sid
+    room_id = get_room_from_peer_id(sid)
     remove_peer(sid)
 
     # TODO : if not peers in room anymore, remove room
+    if len(get_peers_in_room(room_id)) < 1 :
+        remove_room(room_id)
 
     print(f"Client left: {sid}")
 
