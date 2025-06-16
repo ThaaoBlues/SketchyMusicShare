@@ -30,11 +30,13 @@ const waitForBuffer = (guestId) =>
 function start_networking(){
     ROOM_ID = window.ROOM_ID;
     socket.emit("join",{type:"host",room_id:ROOM_ID});
+
+    addEventListener("beforeunload", (event) => { 
+        socket.emit("disconnect");
+    });
+
 }
 
-socket.on("heatbeat",()=>{
-    socket.emit("heartbeat",{from : peerId});
-});
 
 socket.on("peer_id", ({ id }) => {
     peerId = id;

@@ -22,6 +22,9 @@ function start_networking(){
     ROOM_ID = window.ROOM_ID;
     socket.emit("join", { type: "guest",room_id:ROOM_ID });
     console.log("sent socketio join event");
+    addEventListener("beforeunload", (event) => { 
+        socket.emit("disconnect");
+    });
 }
 
 socket.on("peer_id", async ({ id, hosts }) => {

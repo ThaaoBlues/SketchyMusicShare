@@ -59,11 +59,6 @@ def handle_join(data):
 
     print(f"Client joined: {sid}")
 
-@socketio.on('heartbeat')
-def handle_heartbeat(data):
-
-    hostId = data.get('from')
-    print("got heatbeat from",hostId)
 
 
 
@@ -78,6 +73,7 @@ def handle_disconnect(truc):
 
     # TODO : if not peers in room anymore, remove room
     if len(get_peers_in_room(room_id)) < 1 :
+        print("[+] last peer of a room left, removing it.")
         remove_room(room_id)
 
     print(f"Client left: {sid}")
@@ -112,24 +108,10 @@ def default_error_handler(e):
 
 
 
-def heartbeat_thread_body():
-
-    while True:
-        sleep(5)
-        #hosts  = ?
-        try:
-
-            socketio.emit('heatbeat',room=h)
-        except:
-            print("shit hit the fan trying to send heatbeats")
-            pass
-
 
 
 if __name__ == "__main__":
     init_db()
-    hearbeat_thread = Thread(target=heartbeat_thread_body)
-    #hearbeat_thread.start()
     socketio.run(app, host="0.0.0.0", port=7171, debug=True)
 
     # TODO : implement heartbeat with database without whiping it ?
