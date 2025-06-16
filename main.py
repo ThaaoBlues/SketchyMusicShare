@@ -111,4 +111,6 @@ if __name__ == "__main__":
     init_db()
     socketio.run(app, host="0.0.0.0", port=7171, debug=True)
 
-    # TODO : add room_id, qr codes, links to guest interface too
+    # TODO : FIX (crash log) : 
+    # [+] last peer of a room left, removing the room.
+    # SocketIO error: list index out of range
