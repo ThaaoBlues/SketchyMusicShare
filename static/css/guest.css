@@ -144,4 +144,20 @@ audio {
   min-height: 3vh;
 }
 
+#access_fieldset{
+  text-align: center;
+}
 
+legend{
+  font-size: larger;
+}
+
+#player-skip-buttons{
+  width: auto;
+}
+#player-skip-buttons button{
+  font-size: 5vh;
+  margin-left: 1vw;
+  margin-right: 1vw;
+  border-radius: 10px;
+}

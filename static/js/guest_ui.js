@@ -82,6 +82,29 @@ player.onended = () => {
     }
 };
 
+function skipTrack(){
+    let nextIndex = currentIndex + 1;
+    if (nextIndex >= playlist.length) nextIndex = 0;
+    playTrackAtIndex(nextIndex);
+}
+
+function rewindTrack(){
+        // Check if the current time is more than 10 seconds
+        if (player.currentTime > 10) {
+            // Rewind the current track to the beginning
+            player.currentTime = 0;
+        } else {
+            // go back to last track
+            if (currentIndex > 0) {
+                currentIndex --;
+            } else {
+                currentIndex = playlist.length-1;
+            }
+            playTrackAtIndex(currentIndex);
+        }
+    
+}
+
 window.onload = () => {
     setupUI();
     guestNetworking.setPlaylistUpdateCallback((newList) => {

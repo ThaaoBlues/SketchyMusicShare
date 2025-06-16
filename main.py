@@ -24,11 +24,9 @@ def handle_signal(data):
     sender_id = data.get("from")
     room_id = data.get("room_id")
 
-    print("target_id=",target_id)
     peers_data = get_peers_in_room(room_id=room_id)
     peers = [p for (p,t) in peers_data]
     if target_id in peers:
-        print("broadcasting signal to ",target_id)
         socketio.emit('signal', data, room=target_id)
 
     elif target_id == None:
@@ -57,7 +55,7 @@ def handle_join(data):
 
             emit("hosts-list-update", {"hosts": hosts},room=g[0])
 
-    print(f"Client joined: {sid}")
+    print(f"[+] Client joined: {sid}")
 
 
 
@@ -66,17 +64,16 @@ def handle_join(data):
 
 @socketio.on('disconnect')
 def handle_disconnect(truc):
-    print(truc)
     sid = request.sid
     room_id = get_room_from_peer_id(sid)
     remove_peer(sid)
+    print(f"[+] Client left: {sid}")
 
     # TODO : if not peers in room anymore, remove room
     if len(get_peers_in_room(room_id)) < 1 :
-        print("[+] last peer of a room left, removing it.")
+        print("[+] last peer of a room left, removing the room.")
         remove_room(room_id)
 
-    print(f"Client left: {sid}")
 
 @app.route('/')
 def index():
@@ -114,6 +111,4 @@ if __name__ == "__main__":
     init_db()
     socketio.run(app, host="0.0.0.0", port=7171, debug=True)
 
-    # TODO : implement heartbeat with database without whiping it ?
-    # TODO : (test) if not peers in room anymore, remove room
     # TODO : add room_id, qr codes, links to guest interface too
