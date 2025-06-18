@@ -10,6 +10,12 @@ from random import randrange
 app = Flask(__name__, static_folder="static")
 socketio = SocketIO(app, cors_allowed_origins="*")
 
+ENV = "TEST"
+#ENV = "PROD"
+PROD_ADDR = "thaaoblues.eu.pythonanywhere.com"
+PROD_PORT = 443
+TEST_PORT = 7171
+
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.connect(("8.8.8.8", 80))
@@ -23,6 +29,11 @@ def handle_signal(data):
     target_id = data.get("to")
     sender_id = data.get("from")
     room_id = data.get("room_id")
+
+    if not room_exists(room_id):
+        emit("error", {"message": "Room does not exist"})
+        return
+    
 
     peers_data = get_peers_in_room(room_id=room_id)
     peers = [p for (p,t) in peers_data]
@@ -66,10 +77,14 @@ def handle_join(data):
 def handle_disconnect(truc):
     sid = request.sid
     room_id = get_room_from_peer_id(sid)
+
+    if not room_exists(room_id):
+        emit("error", {"message": "Room does not exist"})
+        return
+        
     remove_peer(sid)
     print(f"[+] Client left: {sid}")
 
-    # TODO : if not peers in room anymore, remove room
     if len(get_peers_in_room(room_id)) < 1 :
         print("[+] last peer of a room left, removing the room.")
         remove_room(room_id)
@@ -77,25 +92,75 @@ def handle_disconnect(truc):
 
 @app.route('/')
 def index():
-    return render_template("index.html",server_ip=get_local_ip())
+    if ENV == "PROD":
+        server_port = PROD_PORT
+        server_ip = PROD_ADDR
+    else:
+        server_ip = get_local_ip()
+        server_port = TEST_PORT
+
+    return render_template("index.html",
+    server_ip=get_local_ip(),
+    server_port = server_port
+    )
 
 @app.route('/host/<room_id>')
 def host(room_id):
     if not room_exists(room_id):
         return "Room not found", 404
-    return render_template("host.html", room_id=room_id, server_ip=get_local_ip())
+
+    if ENV == "PROD":
+        server_ip = PROD_ADDR
+        server_port = PROD_PORT
+    else:
+        server_ip = get_local_ip()
+        server_port = TEST_PORT
+
+    return render_template("host.html",     
+    room_id=room_id, 
+    server_ip=get_local_ip(),
+    server_port = server_port
+    )
 
 @app.route('/guest/<room_id>')
 def guest(room_id):
     if not room_exists(room_id):
         return "Room not found", 404
-    return render_template("guest.html", room_id=room_id, server_ip=get_local_ip())
+
+    if ENV == "PROD":
+        server_ip = PROD_ADDR
+        server_port = PROD_PORT
+    else:
+        server_ip = get_local_ip()
+        server_port = TEST_PORT
+
+    return render_template("guest.html", 
+    room_id=room_id, 
+    server_ip=get_local_ip(),
+    server_port = server_port
+    )
 
 
 @app.route('/create_room')
 def create_room_route():
-    room_id = create_room()
-    return render_template("host.html", room_id=room_id, server_ip=get_local_ip())
+    try:
+        room_id = create_room()
+    except sqlite3.OperationalError:
+        init_db()
+        room_id = create_room()
+
+    if ENV == "PROD":
+        server_ip = PROD_ADDR
+        server_port = PROD_PORT
+    else:
+        server_ip = get_local_ip()
+        server_port = TEST_PORT
+    
+    return render_template("host.html",
+    room_id=room_id, 
+    server_ip=server_ip,
+    server_port=server_port
+    )
 
 
 @socketio.on_error_default

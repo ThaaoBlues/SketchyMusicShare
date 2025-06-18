@@ -7,7 +7,7 @@ body {
   background: #121212;
   color: #fff;
   display: flex;
-  flex-direction: column; /* Changed for mobile-first layout */
+  flex-direction: column;
 }
 
 .app-container {
@@ -35,14 +35,16 @@ body {
 }
 
 .topbar {
+  text-align: center;
   display: flex;
   justify-content: center;
-  margin-bottom: 20px;
+  margin-bottom: 5vh;
+  width: 80vw;
 }
 
 .topbar input[type="text"] {
   width: 100%;
-  max-width: 500px;
+  width: 60vw;
   padding: 12px;
   border-radius: 50px;
   border: none;
@@ -72,6 +74,7 @@ audio {
 .file-section {
   flex-grow: 1;
   overflow-y: auto;
+  max-height: 30vh;
 }
 
 .file-section h2 {
@@ -109,8 +112,8 @@ audio {
   width: fit-content;
   margin-left: auto;
   margin-right: auto;
-  position:sticky;
-  bottom: 2vh;
+  position:relative;
+  /*bottom: 2vh;*/
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -122,14 +125,14 @@ audio {
 .controls button {
   background-color: #282828;
   color: white;
-  padding: 12px 20px;
+  padding: 1vh 5vw;
   border: none;
   border-radius: 50px;
   cursor: pointer;
   transition: all 0.2s;
   flex: 1 1 30%;
   font-size: 1.2rem;
-  min-width: 100px;
+  min-width: 45vw;
 }
 
 .controls button:hover,
@@ -144,8 +147,16 @@ audio {
   min-height: 3vh;
 }
 
+.center{
+  margin-left: auto;
+  margin-right: auto;
+}
+
 #access_fieldset{
+  margin-left: auto;
+  margin-right: auto;
   text-align: center;
+  width: fit-content;
 }
 
 legend{
@@ -153,6 +164,7 @@ legend{
 }
 
 #player-skip-buttons{
+  margin-top: 0.5vh;
   width: auto;
 }
 #player-skip-buttons button{
@@ -160,4 +172,13 @@ legend{
   margin-left: 1vw;
   margin-right: 1vw;
   border-radius: 10px;
+  background-color: transparent;
+}
+#player-skip-buttons button:hover{
+  transform: scale(1.1);
+  background-color: transparent;
+}
+
+.width-fit-content{
+  width: fit-content;
 }

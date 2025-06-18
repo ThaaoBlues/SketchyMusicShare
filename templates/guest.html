@@ -6,22 +6,52 @@
 </head>
 <body>
   <div class="app-container">
-    <aside class="logo">
-      <h1>🎧 SketchyMusicStream</h1>
-    </aside>
+      <fieldset class="width-fit-content">
+        <legend>Logo</legend>
+        <aside class="logo">
+        <h1>🎧 SketchyMusicStream</h1>
+      </aside>
+      </fieldset>
 
     <main class="main-content">
-      <header class="topbar">
-        <input type="text" id="searchInput" placeholder="Search for a track..." />
-      </header>
+
+      <fieldset class="topbar center">
+        <legend>
+          top-bar
+        </legend>
+        <header>
+          <input type="text" id="searchInput" placeholder="Search for a track..." />
+        </header>
+          <fieldset id="loadingSpinner" class="loading width-fit-content center">
+            <legend>Loading-spinner</legend>
+            <div>
+              Loading... 🎧
+            </div>
+          </fieldset>
+      </fieldset>
+      
 
       <section class="player-section">
-        <div id="loadingSpinner" class="loading">Loading... 🎧</div>
-        <audio id="player" controls></audio>
-        <div id="player-skip-buttons">
+
+
+        <fieldset class="width-fit-content center">
+          <legend>
+            Controls
+          </legend>
+          <audio id="player" controls></audio>
+
+          <div id="player-skip-buttons">
             <button onclick="rewindTrack()">⏮️</button>
             <button onclick="skipTrack()">⏭️</button>
-        </div>
+          </div>
+          <div class="controls">
+            <button id="btn-sequential">Sequential</button>
+            <button id="btn-shuffle">Shuffle</button>
+            <button id="btn-loop">Loop</button>
+          </div>
+
+
+        </fieldset>
       </section>
 
 
@@ -35,25 +65,24 @@
         </fieldset>
       </section>
 
-      <footer class="controls">
-        <button id="btn-sequential">Sequential</button>
-        <button id="btn-shuffle">Shuffle</button>
-        <button id="btn-loop">Loop</button>
+      <footer class="center-content">
+        <fieldset id="access_fieldset">
+          <legend>
+              Access the room
+          </legend>
+  
+          <h2><b>ROOM ID : {{room_id}}</b></h2>
+          <img id="host_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:{{server_port}}/host/{{room_id}}" alt="">
+          <label for="host_qr">Scan or share the link to share your music files.</label>
+          <a href="http://{{server_ip}}:{{server_port}}/host/{{room_id}}">Share music files</a>
+          <img id="guest_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:{{server_port}}/guest/{{room_id}}" alt="">
+          <label for="host_qr">Scan this or click the link to stream the music files.</label>
+          <a href="http://{{server_ip}}:{{server_port}}/guest/{{room_id}}">Stream music files</a>
+  
+        </fieldset>
       </footer>
 
-      <fieldset id="access_fieldset">
-        <legend>
-            Access the room
-        </legend>
-
-        <img id="host_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:7171/host/{{room_id}}" alt="">
-        <label for="host_qr">Scan or share the link to share your music files.</label>
-        <a href="http://{{server_ip}}:7171/host/{{room_id}}">Share music files</a>
-        <img id="guest_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:7171/guest/{{room_id}}" alt="">
-        <label for="host_qr">Scan this or click the link to stream the music files.</label>
-        <a href="http://{{server_ip}}:7171/guest/{{room_id}}">Stream music files</a>
-
-    </fieldset>
+      
     </main>
   </div>
 

@@ -20,6 +20,8 @@
         <legend>
             Access the room
         </legend>
+        <h2><b>ROOM ID : {{room_id}}</b></h2>
+
         <img id="host_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:7171/host/{{room_id}}" alt="">
         <label for="host_qr">Scan or share the link to share your music files. (you are already here)</label>
         <a href="http://{{server_ip}}:7171/host/{{room_id}}">http://{{server_ip}}:7171/host/{{room_id}}</a>
