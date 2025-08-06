@@ -72,12 +72,12 @@
           </legend>
   
           <h2><b>ROOM ID : {{room_id}}</b></h2>
-          <img id="host_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:{{server_port}}/host/{{room_id}}" alt="">
+          <img id="host_qr" alt="">
           <label for="host_qr">Scan or share the link to share your music files.</label>
-          <a href="http://{{server_ip}}:{{server_port}}/host/{{room_id}}">Share music files</a>
-          <img id="guest_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://{{server_ip}}:{{server_port}}/guest/{{room_id}}" alt="">
-          <label for="host_qr">Scan this or click the link to stream the music files.</label>
-          <a href="http://{{server_ip}}:{{server_port}}/guest/{{room_id}}">Stream music files</a>
+          <a href="/host/{{room_id}}">Share music files</a>
+          <img id="guest_qr" alt="">
+          <label for="guest_qr">Scan this or click the link to stream the music files.</label>
+          <a href="/guest/{{room_id}}">Stream music files</a>
   
         </fieldset>
       </footer>

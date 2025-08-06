@@ -1,4 +1,3 @@
-// guest_networking.js
 const socket = io();
 let peerId;
 let peerConnections = {};
@@ -8,11 +7,8 @@ let incomingChunks = [];
 /** @type {Record<string, Set<string>>} */
 let filesSources = {}; // songName -> {hostId}
 let knownHosts = [];
-
 let netPlaylist = [];
 let ROOM_ID;
-
-
 // UI callback placeholders, set by UI script later
 let onPlaylistUpdate = null;
 let onFileDataReceived = null;
@@ -22,7 +18,7 @@ function start_networking(){
     ROOM_ID = window.ROOM_ID;
     socket.emit("join", { type: "guest",room_id:ROOM_ID });
     console.log("sent socketio join event");
-    addEventListener("beforeunload", (event) => { 
+    addEventListener("beforeunload", (event) => {
         socket.emit("disconnect");
     });
 }
@@ -30,7 +26,6 @@ function start_networking(){
 socket.on("peer_id", async ({ id, hosts }) => {
     peerId = id;
     console.log("Guest joined with ID:", peerId);
-
     hosts.forEach(async h => {
         const hostId =h;
         if (!knownHosts.includes(hostId)) {
@@ -52,7 +47,6 @@ socket.on("hosts-list-update", async ({hosts}) => {
             knownHosts.push(hostId);
         }
     });
-
     // remove old connections if not already made
     knownHosts.forEach(h=>{
         const hostId = h;
@@ -60,7 +54,6 @@ socket.on("hosts-list-update", async ({hosts}) => {
             knownHosts.splice(knownHosts.indexOf(hostId),1);
         }
     });
-
 });
 
 socket.on("signal", async ({ from, data }) => {
@@ -77,13 +70,9 @@ socket.on("signal", async ({ from, data }) => {
 });
 
 async function setupConnection(h) {
-
     const hostId = h;
-
     peerConnections[hostId] = new RTCPeerConnection();
     const peerConnection = peerConnections[hostId];
-
-
     peerConnection.onicecandidate = ({ candidate }) => {
         if (candidate) {
             socket.emit("signal", {
@@ -95,26 +84,20 @@ async function setupConnection(h) {
             });
         }
     };
-
     const dataChannel = peerConnection.createDataChannel("music");
     dataChannel.binaryType = "arraybuffer";
     channels[hostId] = dataChannel;
-
     dataChannel.onopen = () => {
         console.log(`DataChannel to host ${hostId} open`);
     };
-
     dataChannel.onclose = () => {
         cleanupHost(hostId);
-        
+
         console.log(`DataChannel to host ${hostId} closed`);
     };
-
     dataChannel.onmessage = (e) => handleDataChannelMessage(hostId, e);
-
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
-
     setTimeout(() => {
         socket.emit("signal", {
             from: peerId,
@@ -136,23 +119,20 @@ function concatChunks(chunks) {
     }
     return result;
 }
+
 function handleDataChannelMessage(h, e) {
     const hostId = h;
-
     if (typeof e.data === "string") {
         if (e.data === "LIST_END") {
             const chunks = listBufferChunks[hostId] || [];
             const combined = concatChunks(chunks);
             const decoded = new TextDecoder().decode(combined);
             delete listBufferChunks[hostId];  // cleanup
-
             if (!decoded.startsWith("LIST:")) {
                 console.warn("Invalid list format from", hostId);
                 return;
             }
-
             const filenames = decoded.slice(5).split(";").filter(n => n.trim());
-
             filenames.forEach(name => {
                 if (!netPlaylist.includes(name)) {
                     netPlaylist.push(name);
@@ -162,17 +142,14 @@ function handleDataChannelMessage(h, e) {
                 }
                 filesSources[name].add(hostId);
             });
-
             if (typeof onPlaylistUpdate === "function") {
                 onPlaylistUpdate(netPlaylist);
             }
-
         } else if (e.data.startsWith("EOF:")) {
             if (typeof onFileDataReceived === "function") {
                 onFileDataReceived(incomingChunks);
             }
             incomingChunks = [];
-
         }
     } else if (e.data instanceof ArrayBuffer) {
         try {
@@ -180,10 +157,8 @@ function handleDataChannelMessage(h, e) {
             if (text.startsWith("LIST_PART:")) {
                 const stripped = text.replace(/^LIST_PART:/, '');
                 const encoded = new TextEncoder().encode(stripped);
-
                 if (!listBufferChunks[hostId]) listBufferChunks[hostId] = [];
                 listBufferChunks[hostId].push(encoded);
-
             } else {
                 incomingChunks.push(e.data);
             }
@@ -193,7 +168,6 @@ function handleDataChannelMessage(h, e) {
     }
 }
 
-
 function requestFile(filename) {
     incomingChunks = [];
     const hostSet = filesSources[filename];
@@ -201,26 +175,37 @@ function requestFile(filename) {
         console.warn("No host available for file:", filename);
         return;
     }
-
     const availableHostIds = [...hostSet].filter(id => channels[id]?.readyState === "open");
-
     if (availableHostIds.length === 0) {
         console.warn("No open channels for file:", filename);
         return;
     }
-
     const hostId = availableHostIds[Math.floor(Math.random() * availableHostIds.length)];
-
     if (typeof onFileRequestStarted === "function") {
         onFileRequestStarted();
     }
     channels[hostId].send("REQUEST:" + filename);
 }
 
+function prefetchFile(filename, callback) {
+    let tempChunks = [];
+    let tempCallback = (chunks) => {
+        tempChunks = chunks;
+        callback(tempChunks);
+        // Restore the original callback if needed
+        guestNetworking.setFileDataReceivedCallback(onFileDataReceived);
+    };
+    // Store the original callback
+    const originalCallback = onFileDataReceived;
+    // Set a temporary callback
+    guestNetworking.setFileDataReceivedCallback(tempCallback);
+    // Request the file
+    requestFile(filename);
+}
+
 function cleanupHost(hostId) {
     // Remove from known hosts
     knownHosts = knownHosts.filter(h => h !== hostId);
-
     // Remove from filesSources
     for (const [file, hostsSet] of Object.entries(filesSources)) {
         hostsSet.delete(hostId);
@@ -229,11 +214,9 @@ function cleanupHost(hostId) {
             netPlaylist = netPlaylist.filter(f => f !== file);
         }
     }
-
     // Clean connections
     delete peerConnections[hostId];
     delete channels[hostId];
-
     // Notify UI
     if (typeof onPlaylistUpdate === "function") {
         onPlaylistUpdate(netPlaylist);
@@ -242,6 +225,7 @@ function cleanupHost(hostId) {
 
 window.guestNetworking = {
     requestFile,
+    prefetchFile,
     setPlaylistUpdateCallback: (cb) => { onPlaylistUpdate = cb; },
     setFileDataReceivedCallback: (cb) => { onFileDataReceived = cb; },
     setFileRequestStartedCallback: (cb) => { onFileRequestStarted = cb; }

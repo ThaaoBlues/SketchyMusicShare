@@ -1,6 +1,9 @@
-function prompt_and_join_room(server_ip,server_port,host){
+function prompt_and_join_room(host){
     let room_id = prompt("Enter room code");
-    let url = "http://"+server_ip+":"+server_port
+
+
+    let url = window.location.href
+
     if(host){
         url += "/host/"
     }else{

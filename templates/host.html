@@ -24,10 +24,10 @@
 
         <img id="host_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://{{server_ip}}:{{server_port}}/host/{{room_id}}" alt="">
         <label for="host_qr">Scan or share the link to share your music files. (you are already here)</label>
-        <a href="https://{{server_ip}}:{{server_port}}/host/{{room_id}}">Share music files</a>
-        <img id="guest_qr" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://{{server_ip}}:{{server_port}}/guest/{{room_id}}" alt="">
-        <label for="host_qr">Scan this or click the link to stream the music files.</label>
-        <a href="https://{{server_ip}}:{{server_port}}/guest/{{room_id}}">Stream music files</a>
+        <a href="/host/{{room_id}}">Share music files</a>
+        <img id="guest_qr" alt="">
+        <label for="guest_qr">Scan this or click the link to stream the music files.</label>
+        <a href="/guest/{{room_id}}">Stream music files</a>
 
     </fieldset>
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>

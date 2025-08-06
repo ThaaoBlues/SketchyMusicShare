@@ -26,6 +26,7 @@ const waitForBuffer = (guestId) =>
     });
 
 
+
 // ====== Socket.IO Setup ======
 function start_networking(){
     ROOM_ID = window.ROOM_ID;
@@ -222,4 +223,5 @@ function sendFileList(guestId) {
     // Send end marker
     dataChannel.send("LIST_END");
 }
+
 
